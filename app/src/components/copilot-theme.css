@@ -1,0 +1,179 @@
+/* Points the copilot's design-system tokens at this app's theme.
+
+   The SDK paints <CopilotChat> from its own token set — about 2,000 variables that
+   copilot.css declares on every theme scope it renders (`.ua-variables`, plus any
+   element carrying `data-color-scheme`). They hold UnifyApps' palette: a purple brand,
+   neutral greys, white surfaces and its own corner radii. None of them read this app's
+   `--primary`, `--background` or `--app-radius`, so without this file the chat is the
+   one surface in the app that ignores the theme.
+
+   The bridge works at the PALETTE layer. The SDK's semantic tokens (`--bg-brand-solid`,
+   `--text-secondary`, `--border-primary`, the button and copilot tokens…) are all
+   `var(--palette-…)` references, so re-pointing the ramps re-themes every one of them
+   without naming them. Two ramps are needed because the SDK's light and dark token sets
+   read different ones: the light set reads `--palette-gray-*`, the dark set
+   `--palette-gray-dark-*` and its alpha steps. Both are mixed from this app's own
+   `--foreground` and `--background`, so either set follows the app into dark mode.
+   A handful of semantic tokens are pointed at app tokens directly, because the palette
+   step behind them is the wrong idea: text on a brand fill has to be
+   `--primary-foreground`, not white, once `--primary` can be any colour.
+
+   `:root` in front lifts these rules above the SDK's own (0,1,0)/(0,2,0) token rules
+   whatever order the stylesheets load in. Scoped to `.ua-copilot-box`, the class the
+   SDK puts on every copilot root, so a <CopilotProvider> mounted anywhere is themed and
+   nothing else the SDK renders is touched.
+
+   Every name here must exist in the SDK's copilot.css — a renamed token fails silently
+   in the browser, so a template test pins the list against the installed SDK. */
+
+:root .ua-copilot-box.ua-variables,
+:root .ua-copilot-box :is(.ua-variables, [data-color-scheme], .copilot-chat-theme) {
+    /* brand: tints toward white and shades toward black, the way the SDK's own ramp is
+       built, so its dark set (which reads 800/900 as dark fills) stays right */
+    --palette-brand-25: color-mix(in oklab, var(--primary) 4%, white);
+    --palette-brand-50: color-mix(in oklab, var(--primary) 8%, white);
+    --palette-brand-100: color-mix(in oklab, var(--primary) 14%, white);
+    --palette-brand-200: color-mix(in oklab, var(--primary) 26%, white);
+    --palette-brand-300: color-mix(in oklab, var(--primary) 44%, white);
+    --palette-brand-400: color-mix(in oklab, var(--primary) 68%, white);
+    --palette-brand-500: color-mix(in oklab, var(--primary) 86%, white);
+    --palette-brand-600: var(--primary);
+    --palette-brand-700: color-mix(in oklab, var(--primary) 84%, black);
+    --palette-brand-800: color-mix(in oklab, var(--primary) 66%, black);
+    --palette-brand-900: color-mix(in oklab, var(--primary) 52%, black);
+    --palette-brand-950: color-mix(in oklab, var(--primary) 38%, black);
+    --palette-brand-secondary-25: var(--palette-brand-25);
+    --palette-brand-secondary-50: var(--palette-brand-50);
+    --palette-brand-secondary-100: var(--palette-brand-100);
+    --palette-brand-secondary-200: var(--palette-brand-200);
+    --palette-brand-secondary-300: var(--palette-brand-300);
+    --palette-brand-secondary-400: var(--palette-brand-400);
+    --palette-brand-secondary-500: var(--palette-brand-500);
+    --palette-brand-secondary-600: var(--palette-brand-600);
+    --palette-brand-secondary-700: var(--palette-brand-700);
+    --palette-brand-secondary-800: var(--palette-brand-800);
+    --palette-brand-secondary-900: var(--palette-brand-900);
+    --palette-brand-secondary-950: var(--palette-brand-950);
+    --palette-alpha-brand-05: color-mix(in oklab, var(--primary) 5%, transparent);
+    --palette-alpha-brand-10: color-mix(in oklab, var(--primary) 10%, transparent);
+    --palette-alpha-brand-20: color-mix(in oklab, var(--primary) 20%, transparent);
+    --palette-alpha-brand-30: color-mix(in oklab, var(--primary) 30%, transparent);
+    --palette-alpha-brand-40: color-mix(in oklab, var(--primary) 40%, transparent);
+    --palette-alpha-brand-50: color-mix(in oklab, var(--primary) 50%, transparent);
+    --palette-alpha-brand-60: color-mix(in oklab, var(--primary) 60%, transparent);
+    --palette-alpha-brand-70: color-mix(in oklab, var(--primary) 70%, transparent);
+    --palette-alpha-brand-80: color-mix(in oklab, var(--primary) 80%, transparent);
+    --palette-alpha-brand-90: color-mix(in oklab, var(--primary) 90%, transparent);
+    --palette-alpha-brand-100: var(--primary);
+
+    /* neutrals for the light set: the app's ink mixed into its page, lightest first */
+    --palette-gray-25: color-mix(in oklab, var(--foreground) 2%, var(--background));
+    --palette-gray-50: color-mix(in oklab, var(--foreground) 3.5%, var(--background));
+    --palette-gray-100: color-mix(in oklab, var(--foreground) 6%, var(--background));
+    --palette-gray-200: color-mix(in oklab, var(--foreground) 10%, var(--background));
+    --palette-gray-300: color-mix(in oklab, var(--foreground) 16%, var(--background));
+    --palette-gray-400: color-mix(in oklab, var(--foreground) 36%, var(--background));
+    --palette-gray-500: color-mix(in oklab, var(--foreground) 54%, var(--background));
+    --palette-gray-600: color-mix(in oklab, var(--foreground) 67%, var(--background));
+    --palette-gray-700: color-mix(in oklab, var(--foreground) 75%, var(--background));
+    --palette-gray-800: color-mix(in oklab, var(--foreground) 86%, var(--background));
+    --palette-gray-900: color-mix(in oklab, var(--foreground) 93%, var(--background));
+    --palette-gray-950: color-mix(in oklab, var(--foreground) 97%, var(--background));
+
+    /* neutrals for the dark set. The SDK reads 900 as the page and 950 as a step BELOW
+       it, and its text and borders from the alpha steps, so those are the app's ink at
+       the same opacities the SDK uses for white */
+    --palette-gray-dark-25: color-mix(in oklab, var(--foreground) 98%, var(--background));
+    --palette-gray-dark-50: color-mix(in oklab, var(--foreground) 96%, var(--background));
+    --palette-gray-dark-100: color-mix(in oklab, var(--foreground) 94%, var(--background));
+    --palette-gray-dark-200: color-mix(in oklab, var(--foreground) 92%, var(--background));
+    --palette-gray-dark-300: color-mix(in oklab, var(--foreground) 80%, var(--background));
+    --palette-gray-dark-400: color-mix(in oklab, var(--foreground) 57%, var(--background));
+    --palette-gray-dark-500: color-mix(in oklab, var(--foreground) 50%, var(--background));
+    --palette-gray-dark-600: color-mix(in oklab, var(--foreground) 35%, var(--background));
+    --palette-gray-dark-700: color-mix(in oklab, var(--foreground) 15%, var(--background));
+    --palette-gray-dark-800: color-mix(in oklab, var(--foreground) 6%, var(--background));
+    --palette-gray-dark-900: var(--background);
+    --palette-gray-dark-950: color-mix(in oklab, var(--background) 80%, black);
+    --palette-gray-dark-alpha-25: color-mix(in oklab, var(--foreground) 98%, transparent);
+    --palette-gray-dark-alpha-50: color-mix(in oklab, var(--foreground) 96%, transparent);
+    --palette-gray-dark-alpha-100: color-mix(in oklab, var(--foreground) 94%, transparent);
+    --palette-gray-dark-alpha-200: color-mix(in oklab, var(--foreground) 92%, transparent);
+    --palette-gray-dark-alpha-300: color-mix(in oklab, var(--foreground) 80%, transparent);
+    --palette-gray-dark-alpha-400: color-mix(in oklab, var(--foreground) 56%, transparent);
+    --palette-gray-dark-alpha-500: color-mix(in oklab, var(--foreground) 50%, transparent);
+    --palette-gray-dark-alpha-600: color-mix(in oklab, var(--foreground) 35%, transparent);
+    --palette-gray-dark-alpha-700: color-mix(in oklab, var(--foreground) 16%, transparent);
+    --palette-gray-dark-alpha-800: color-mix(in oklab, var(--foreground) 8%, transparent);
+    --palette-gray-dark-alpha-900: color-mix(in oklab, var(--foreground) 4%, transparent);
+
+    /* surfaces the SDK paints pure white in its light set */
+    --bg-primary: var(--card);
+    --bg-primary_alt: var(--card);
+    --text-placeholder: var(--placeholder, var(--muted-foreground));
+    /* ink on a brand fill. The SDK assumes white on purple; an app's primary can be
+       light (most dark themes) and then only its own foreground is readable */
+    --text-primary_on-brand: var(--primary-foreground);
+    --button-brand-primary-fg: var(--primary-foreground);
+    --button-brand-primary-fg_focused: var(--primary-foreground);
+    --button-brand-primary-fg_hover: var(--primary-foreground);
+    /* the SDK's solid NEUTRAL button is its default action — the composer's send button
+       is one — which is what shadcn's default Button is: `bg-primary`. Left on the grey
+       ramp, the one control the user presses most is the one place the accent never
+       reaches */
+    --button-neutral-primary-bg: var(--primary);
+    --button-neutral-primary-bg_focused: var(--primary);
+    --button-neutral-primary-bg_hover: color-mix(in oklab, var(--primary) 90%, transparent);
+    --button-neutral-primary-fg: var(--primary-foreground);
+    --button-neutral-primary-fg_focused: var(--primary-foreground);
+    --button-neutral-primary-fg_hover: var(--primary-foreground);
+
+    /* the user's own messages carry a tint of the accent, measured against the card so
+       it stays a tint in dark mode too. `appearance.customStyles.userMessage` still wins */
+    --copilot-user-message-bg: color-mix(in oklab, var(--primary) 10%, var(--card));
+    /* the greeting title's display face. The SDK sets it in this variable and never
+       declares it — the platform's own pages do — so without this it falls back to body
+       text, the one heading on the page not in the app's heading font */
+    --font-source-serif-4: var(--app-font-heading);
+
+    /* the copilot's own tokens that the SDK writes as literal colours */
+    --copilot-text-quaternary: var(--muted-foreground);
+    --copilot-user-message-code-text: var(--foreground);
+    --thought-connector-gradient: linear-gradient(180deg, var(--utility-gray-100) 0%, var(--card) 119.23%);
+
+    /* corner radii as ratios of the app's radius, keyed so the template default
+       (0.625rem) reproduces the SDK's own px values exactly. `none` and `full` stay. */
+    --radius-xxs: calc(var(--app-radius) * 0.2);
+    --radius-xs: calc(var(--app-radius) * 0.4);
+    --radius-sm: calc(var(--app-radius) * 0.6);
+    --radius-md: calc(var(--app-radius) * 0.8);
+    --radius-lg: calc(var(--app-radius) * 0.8);
+    --radius-xl: calc(var(--app-radius) * 0.8);
+    --radius-2xl: calc(var(--app-radius) * 0.8);
+    --radius-3xl: var(--app-radius);
+    --radius-4xl: calc(var(--app-radius) * 1.2);
+    --radius-5xl: calc(var(--app-radius) * 1.2);
+    --radius-6xl: calc(var(--app-radius) * 1.4);
+    --radius-7xl: calc(var(--app-radius) * 1.6);
+    --radius-8xl: calc(var(--app-radius) * 1.8);
+    --radius-9xl: calc(var(--app-radius) * 2);
+    --radius-10xl: calc(var(--app-radius) * 2.4);
+}
+
+/* The composer is the one surface the SDK rounds with `rounded-full` (at `size="sm"`), so
+   no radius token reaches it, and it is the chat's most emphasised control: in a theme
+   with crisp corners the pill is the first thing that reads as foreign. It takes the step
+   the wide composer uses. Not `--radius-full` itself — that also rounds the send button
+   and the avatars, which stay circles. */
+:root .ua-copilot-box .ua-copilot-input.rounded-full {
+    border-radius: var(--radius-10xl);
+}
+
+/* The agent's avatar orb is painted in the agent's own hue by an INLINE style
+   (`background: url(…ai-agents-orb.svg) center/cover, var(--utility-<hue>-500)`), so it was
+   the platform's pink or violet in every app whatever its theme. The accent replaces the
+   hue and the orb artwork stays. `!important` is the only thing that outranks an inline
+   style; scoped to that one inline background, so nothing else is touched. */
+:root .ua-copilot-box [style*="ai-agents-orb"] {
+    background-color: var(--primary) !important;
+}
