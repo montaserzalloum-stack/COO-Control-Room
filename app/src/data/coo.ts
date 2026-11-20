@@ -6,7 +6,7 @@ import { useExecuteWorkflowNode } from '@unifyapps/app-builder-sdk/hooks/workflo
 
 const DATA_SOURCE_ID = 'e_6afffd0f4181652aba846dc5'
 const AUTOMATION_ID = '6afffb65a008e508f9d9f451'
-const RESOURCE_VERSION = 3242
+const RESOURCE_VERSION = 3240
 
 export interface Signal {
   rule: string
