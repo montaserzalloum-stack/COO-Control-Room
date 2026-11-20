@@ -243,8 +243,27 @@ function Briefing({ model }: { model: CooModel }) {
           </ul>
         )}
       </Panel>
-      <Panel title="4. Customer sentiment" note="Needs the Slack and email connections (not connected yet).">
-        <p style={{ margin: 0, color: C.muted }}>Not connected yet.</p>
+      <Panel title="4. Customer activity" note="From the DeliveryOps daily scans of Slack, email and meetings. The scans record how much activity there was, not what was said, so sentiment is not shown.">
+        {model.activity ? (
+          <>
+            <p style={{ margin: '0 0 8px' }}>
+              {model.activity.withSlackActivity} projects had Slack activity and {model.activity.withEmailActivity} had email activity in the last scan. {model.activity.slackNotConnected} projects have no Slack connected by the lead PM.
+            </p>
+            <ul style={{ paddingLeft: 18, margin: 0 }}>
+              {(model.projects ?? [])
+                .filter((p) => p.slackMsgs + p.gmailMsgs > 0)
+                .sort((a, b) => b.slackMsgs + b.gmailMsgs - (a.slackMsgs + a.gmailMsgs))
+                .slice(0, 8)
+                .map((p) => (
+                  <li key={p.code}>
+                    <SourceLink code={p.code} label={p.code + ' ' + p.name} />: {p.slackMsgs} Slack messages, {p.gmailMsgs} emails, {p.meetings} meetings
+                  </li>
+                ))}
+            </ul>
+          </>
+        ) : (
+          <p style={{ margin: 0, color: C.muted }}>Not in this read yet.</p>
+        )}
       </Panel>
       <Panel title="5. Next 7 days">
         {due.length === 0 ? (
@@ -272,7 +291,9 @@ function Ask({ model }: { model: CooModel }) {
     { q: 'What needs a decision today?', text: 'Escalated RAID items and overdue tasks.' },
     { q: 'What is due in the next 7 days?', rule: 'OT-6', text: 'Milestones due within 7 days and not on track.' },
     { q: 'What is slipping?', rule: 'OT-1', text: 'Milestones past their date and not complete.' },
+    { q: 'Which projects had no activity in the last scan?', rule: 'ACT', text: 'Projects where the DeliveryOps scans found no Slack or email activity.' },
   ]
+  const actRows = (model.projects ?? []).filter((p) => p.scanDone && p.slackMsgs === 0 && p.gmailMsgs === 0)
   const [picked, setPicked] = useState<number>(0)
   const chosen = questions[picked]
   const rows = chosen.rule ? model.signals.filter((s) => s.rule === chosen.rule) : []
@@ -302,7 +323,19 @@ function Ask({ model }: { model: CooModel }) {
       </Panel>
       <Panel title={chosen.q}>
         <p style={{ margin: '0 0 8px', color: C.muted }}>{chosen.text}</p>
-        {chosen.rule ? (
+        {chosen.rule === 'ACT' ? (
+          actRows.length === 0 ? (
+            <p>Every scanned project had some activity.</p>
+          ) : (
+            <ul style={{ paddingLeft: 18, margin: 0 }}>
+              {actRows.slice(0, 30).map((p) => (
+                <li key={p.code} style={{ marginBottom: 6 }}>
+                  <SourceLink code={p.code} label={p.code + ' ' + p.name} /> · {p.slackChannels} Slack channels, {p.gmailPatterns} email patterns
+                </li>
+              ))}
+            </ul>
+          )
+        ) : chosen.rule ? (
           rows.length === 0 ? (
             <p>Nothing matches right now.</p>
           ) : (
@@ -459,17 +492,17 @@ function Settings({ model }: { model: CooModel }) {
 // The PDF's requirements, with where each one stands. Kept on the page so the COO and the team can see
 // what is done, what is partial, and what is blocked, and by what.
 const REQUIREMENTS: Array<{ phase: string; item: string; status: 'Built' | 'Partial' | 'Blocked' | 'Not started'; note: string }> = [
-  { phase: '1 Foundation', item: 'Pilot scope (customers and channels)', status: 'Partial', note: 'The app reads all projects and accounts. Channel and mailbox scope is set by the connections.' },
+  { phase: '1 Foundation', item: 'Pilot scope (customers and channels)', status: 'Partial', note: 'The app reads {projects} projects. {withSlackChannels} have Slack channels and {withEmailPatterns} have email patterns in DeliveryOps.' },
   { phase: '1 Foundation', item: 'Delivery brain as source of truth (stage, owner, date, blockers)', status: 'Built', note: 'Read live from DeliveryOps objects through do_coo_read.' },
-  { phase: '1 Foundation', item: 'Excel trackers and plans in one place', status: 'Not started', note: 'Trackers are imported into DeliveryOps. Not read directly yet.' },
+  { phase: '1 Foundation', item: 'Excel trackers and plans in one place', status: 'Not started', note: '{withTrackerFiles} projects link a tracker file in DeliveryOps. Not read directly yet.' },
   { phase: '1 Foundation', item: 'Definition of off track', status: 'Built', note: 'OT-1, OT-3, OT-4 and OT-6, editable as thresholds. OT-2 and OT-5 need history.' },
-  { phase: '1 Foundation', item: "COO's top questions", status: 'Partial', note: 'Five questions are answered on the Ask tab. The COO has not confirmed the final list.' },
-  { phase: '2 Daily briefing', item: 'One-page briefing with decisions, off track, blocked, sentiment, 7 days', status: 'Partial', note: 'All six sections are on the page. Sentiment needs Slack and email.' },
+  { phase: '1 Foundation', item: "COO's top questions", status: 'Partial', note: 'Six questions are answered on the Ask tab. The COO has not confirmed the final list.' },
+  { phase: '2 Daily briefing', item: 'One-page briefing with decisions, off track, blocked, sentiment, 7 days', status: 'Partial', note: 'All six sections are on the page. Customer activity comes from the DeliveryOps scans ({scanned} projects scanned). Sentiment wording is not in the data.' },
   { phase: '2 Daily briefing', item: 'Every item cites its source', status: 'Built', note: 'Each line links to its DeliveryOps project.' },
   { phase: '2 Daily briefing', item: 'Daily accuracy review and feedback', status: 'Built', note: 'Useful and Not useful buttons save to coo_feedback.' },
   { phase: '3 Drill-down', item: 'Chat: "What is the real status of X?"', status: 'Blocked', note: 'Needs a language model step on the app, and the Slack and email sources.' },
   { phase: '3 Drill-down', item: 'Flag where sources disagree', status: 'Blocked', note: 'Needs Slack and email.' },
-  { phase: '3 Drill-down', item: 'Saved questions for the weekly review', status: 'Partial', note: "Five fixed questions. Saving the COO's own is not built yet." },
+  { phase: '3 Drill-down', item: 'Saved questions for the weekly review', status: 'Partial', note: "Six fixed questions. Saving the COO's own is not built yet." },
   { phase: '4 Alerts and actions', item: 'Real-time alerts for blockers, slips, frustration, connector issues', status: 'Partial', note: 'Signals are computed on each read. Push alerts need a scheduled run and a channel.' },
   { phase: '4 Alerts and actions', item: 'Claude drafts follow-ups for approval', status: 'Blocked', note: 'Needs a send channel (Slack or email) and an approval step.' },
   { phase: '4 Alerts and actions', item: 'Weekly rollup: trends, repeat blockers, team capacity', status: 'Partial', note: 'Day-by-day trend, repeat blockers and team capacity are on the Rollup tab. A weekly view needs a few weeks of history first.' },
@@ -479,14 +512,28 @@ const REQUIREMENTS: Array<{ phase: string; item: string; status: 'Built' | 'Part
   { phase: '5 Scale', item: 'Capacity planning (overloaded people, next quarter)', status: 'Partial', note: 'Who is over 100% today is on the Rollup tab. Next-quarter planning is not built yet.' },
   { phase: 'Risks', item: 'Privacy: no HR or legal threads', status: 'Built', note: 'HR is limited to interviews and onboarding. Legal threads are not read.' },
   { phase: 'Risks', item: 'Accuracy: sources always shown', status: 'Built', note: 'Every item links to its source.' },
-  { phase: 'Risks', item: 'Data hygiene owner', status: 'Partial', note: 'Data health checks are on the Today tab. A named owner per customer is still needed.' },
+  { phase: 'Risks', item: 'Data hygiene owner', status: 'Partial', note: 'Data health checks are on the Today tab. {slackNotConnected} projects have no Slack connected. A named owner per customer is still needed.' },
   { phase: 'Success', item: 'Time spent gathering status goes down', status: 'Not started', note: 'Measure with the COO in Phase 0.' },
 ]
 
 const TABS = ['Today', 'Briefing', 'Ask', 'Rollup', 'Requirements', 'Settings'] as const
 type Tab = (typeof TABS)[number]
 
-function Requirements() {
+// Fills the {token} placeholders in the requirement notes from the live DeliveryOps read.
+function fill(text: string, model: CooModel) {
+  const a = model.activity
+  const values: Record<string, number> = {
+    projects: model.counts.projects ?? 0,
+    withSlackChannels: a?.withSlackChannels ?? 0,
+    withEmailPatterns: a?.withEmailPatterns ?? 0,
+    withTrackerFiles: a?.withTrackerFiles ?? 0,
+    slackNotConnected: a?.slackNotConnected ?? 0,
+    scanned: a?.scanned ?? 0,
+  }
+  return text.replace(/{(w+)}/g, (_, k: string) => String(values[k] ?? '—'))
+}
+
+function Requirements({ model }: { model: CooModel }) {
   const colour: Record<string, string> = { Built: C.green, Partial: C.amber, Blocked: C.red, 'Not started': C.muted }
   const counts = REQUIREMENTS.reduce<Record<string, number>>((m, r) => ({ ...m, [r.status]: (m[r.status] ?? 0) + 1 }), {})
   return (
@@ -507,7 +554,7 @@ function Requirements() {
                 <td style={{ padding: 6, color: C.muted }}>{r.phase}</td>
                 <td style={{ padding: 6 }}>{r.item}</td>
                 <td style={{ padding: 6, color: colour[r.status], fontWeight: 600 }}>{r.status}</td>
-                <td style={{ padding: 6, color: C.muted }}>{r.note}</td>
+                <td style={{ padding: 6, color: C.muted }}>{fill(r.note, model)}</td>
               </tr>
             ))}
           </tbody>
@@ -577,7 +624,7 @@ export default function Home() {
             {tab === 'Briefing' ? <Briefing model={model} /> : null}
             {tab === 'Ask' ? <Ask model={model} /> : null}
             {tab === 'Rollup' ? <Rollup model={model} /> : null}
-            {tab === 'Requirements' ? <Requirements /> : null}
+            {tab === 'Requirements' ? <Requirements model={model} /> : null}
             {tab === 'Settings' ? <Settings model={model} /> : null}
           </>
         ) : null}

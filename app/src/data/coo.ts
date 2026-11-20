@@ -1,7 +1,7 @@
 // Live read of the DeliveryOps objects through the do_coo_read workflow (read-only).
 // The data source e_6afffd0f4181652aba846dc5 ("do_coo_read") was created on the platform
 // with the automation 6afffb65a008e508f9d9f451. The workflow returns one JSON string:
-// { ok, read_at, counts, byProject, signals, signalCount, enums, freshness, notes, capacity, repeatBlockers, trend, dataHealth }.
+// { ok, read_at, counts, byProject, signals, signalCount, enums, freshness, notes, capacity, repeatBlockers, trend, dataHealth, activity, projects }.
 import { useExecuteWorkflowNode } from '@unifyapps/app-builder-sdk/hooks/workflow'
 
 const DATA_SOURCE_ID = 'e_6afffd0f4181652aba846dc5'
@@ -42,6 +42,32 @@ export interface CooModel {
   }
   repeatBlockers?: Record<string, number>
   trend?: Array<Record<string, string | number | undefined>>
+  activity?: {
+    projects: number
+    scanned: number
+    withSlackActivity: number
+    withEmailActivity: number
+    slackNotConnected: number
+    emailNotConnected: number
+    withTrackerFiles: number
+    withSlackChannels: number
+    withEmailPatterns: number
+  }
+  projects?: Array<{
+    code: string
+    name: string
+    status: string
+    headline: string
+    slackMsgs: number
+    gmailMsgs: number
+    meetings: number
+    slackChannels: number
+    gmailPatterns: number
+    trackerFiles: number
+    scanDone: boolean
+    slackSkipped: boolean
+    emailSkipped: boolean
+  }>
 }
 
 function parseModel(raw: unknown): CooModel | undefined {
