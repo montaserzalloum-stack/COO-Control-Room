@@ -1,5 +1,45 @@
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCooModel, type CooModel, type Signal } from '@/data/coo'
+import { useExecuteWorkflowNodeMutation } from '@unifyapps/app-builder-sdk/hooks/workflow'
+
+const FEEDBACK_DS = 'e_6b00103446c1e336ac27cb8b'
+const FEEDBACK_AUTO = '6b00102e78687c490ea8f9c3'
+const FEEDBACK_RV = 3242
+
+function FeedbackButtons({ rule, ref }: { rule: string; ref: string }) {
+  const [sent, setSent] = useState<string | null>(null)
+  const save = useExecuteWorkflowNodeMutation()
+  const vote = async (v: string) => {
+    try {
+      await save.mutateAsync({
+        data: {
+          context: { appName: 'callables', resourceName: 'callables_call_automation', resourceVersion: FEEDBACK_RV },
+          id: FEEDBACK_DS,
+          inputs: {
+            automationId: FEEDBACK_AUTO,
+            version: '-1',
+            runtimeConnections: {},
+            parameters: { signal_key: rule + '|' + ref, rule_code: rule, vote: v, note: '' },
+            synchronous: true,
+          },
+          options: {},
+        },
+      } as never)
+      setSent(v)
+    } catch {
+      setSent('error')
+    }
+  }
+  if (sent === 'error') return <span className="text-xs text-destructive">Could not save</span>
+  if (sent) return <span className="text-xs text-muted-foreground">Thanks: {sent === 'useful' ? 'useful' : 'not useful'}</span>
+  return (
+    <span className="inline-flex gap-2 text-xs">
+      <button type="button" onClick={() => vote('useful')} className="underline underline-offset-2">Useful</button>
+      <button type="button" onClick={() => vote('not_useful')} className="underline underline-offset-2">Not useful</button>
+    </span>
+  )
+}
 
 const TILES: Array<{ key: string; label: string }> = [
   { key: 'projects', label: 'Projects' },
@@ -119,7 +159,8 @@ function Briefing({ model }: { model: CooModel }) {
           <ul className="space-y-1">
             {blockers.slice(0, 8).map((s, i) => (
               <li key={s.ref + '-' + i}>
-                <span className="font-medium">{s.project} · {s.ref}</span>: {s.detail}
+                <span className="font-medium">{s.project} · {s.ref}</span>: {s.detail}{' '}
+                <FeedbackButtons rule={s.rule} ref={s.ref} />
               </li>
             ))}
           </ul>
@@ -138,7 +179,8 @@ function Briefing({ model }: { model: CooModel }) {
           <ul className="space-y-1">
             {due.slice(0, 10).map((s, i) => (
               <li key={s.ref + '-' + i}>
-                <span className="font-medium">{s.project} · {s.ref}</span>: {s.detail}
+                <span className="font-medium">{s.project} · {s.ref}</span>: {s.detail}{' '}
+                <FeedbackButtons rule={s.rule} ref={s.ref} />
               </li>
             ))}
           </ul>
