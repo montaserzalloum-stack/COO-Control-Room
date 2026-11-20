@@ -44,7 +44,7 @@ function SaveTrend({ model }: { model: CooModel }) {
       ot6: String(byRule('OT-6')),
       tasks_overdue: String(model.counts.tasksOverdue ?? 0),
       raid_escalated: String(model.counts.raidEscalated ?? 0),
-      people_overloaded: String((model as unknown as { capacity?: { overloaded: number } }).capacity?.overloaded ?? 0),
+      people_overloaded: String(model.capacity?.overloaded ?? 0),
     }
     save
       .mutateAsync({
@@ -183,6 +183,19 @@ function Today({ model }: { model: CooModel }) {
           {missed.length} missed milestones · {atRisk.length} use cases at risk, blocked or on hold · {due.length} due in 7 days · {blockers.length} open blockers
         </p>
         <p style={{ margin: 0, fontSize: 12, color: C.muted }}>Open a project for the detail. Every line links to its DeliveryOps project.</p>
+      </Panel>
+      <Panel title="Data health" note="Checks on the data itself. Stale data makes every number above less reliable, so fix these first.">
+        {model.dataHealth ? (
+          <ul style={{ paddingLeft: 18, margin: 0 }}>
+            <li>{model.dataHealth.milestonesNotStartedPastDate} milestones are "not started" but past their planned date.</li>
+            <li>{model.dataHealth.projectsWithoutDates} projects have no start or end date.</li>
+            <li>{model.dataHealth.teamRowsWithoutEnd} team allocation rows have no end date (not counted in capacity).</li>
+            <li>{model.dataHealth.teamRowsEndedButListed} team allocation rows have already ended but are still listed.</li>
+            <li>{model.dataHealth.tasksWithoutDueDate} open tasks have no due date.</li>
+          </ul>
+        ) : (
+          <p style={{ margin: 0, color: C.muted }}>Not in this read yet.</p>
+        )}
       </Panel>
     </div>
   )
@@ -357,7 +370,7 @@ function Rollup({ model }: { model: CooModel }) {
           </div>
         )}
       </Panel>
-      <Panel title="Capacity: people over 100% today" note="From the team allocation records, counting only rows whose dates cover today. Totals far above 100% usually mean allocation rows that were never closed. Check their end dates before acting.">
+      <Panel title="Capacity: people over 100% today" note={"Counts only allocation rows that have an end date and cover today. Rows with no end date are left out (see Data health). Totals far above 100% usually mean rows that were never closed."}>
         {cap ? (
           <>
             <p style={{ margin: '0 0 8px' }}>
@@ -466,7 +479,7 @@ const REQUIREMENTS: Array<{ phase: string; item: string; status: 'Built' | 'Part
   { phase: '5 Scale', item: 'Capacity planning (overloaded people, next quarter)', status: 'Partial', note: 'Who is over 100% today is on the Rollup tab. Next-quarter planning is not built yet.' },
   { phase: 'Risks', item: 'Privacy: no HR or legal threads', status: 'Built', note: 'HR is limited to interviews and onboarding. Legal threads are not read.' },
   { phase: 'Risks', item: 'Accuracy: sources always shown', status: 'Built', note: 'Every item links to its source.' },
-  { phase: 'Risks', item: 'Data hygiene owner', status: 'Not started', note: 'Needs a named owner per customer.' },
+  { phase: 'Risks', item: 'Data hygiene owner', status: 'Partial', note: 'Data health checks are on the Today tab. A named owner per customer is still needed.' },
   { phase: 'Success', item: 'Time spent gathering status goes down', status: 'Not started', note: 'Measure with the COO in Phase 0.' },
 ]
 
