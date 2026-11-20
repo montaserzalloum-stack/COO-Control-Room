@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useCooModel, type CooModel, type Signal } from '@/data/coo'
 import { useExecuteWorkflowNodeMutation } from '@unifyapps/app-builder-sdk/hooks/workflow'
 
@@ -21,6 +21,45 @@ const DELIVERY_OPS = 'https://orbit.uat.unifyapps.com/agent-api/preview/b/app-6b
 const FEEDBACK_DS = 'e_6b00103446c1e336ac27cb8b'
 const FEEDBACK_AUTO = '6b00102e78687c490ea8f9c3'
 const FEEDBACK_RV = 3242
+const TREND_DS = 'e_6b0012b346c1e336ac27e7c1'
+const TREND_AUTO = '6b0012b2bc89376231e3f4ef'
+const TREND_RV = 3242
+
+// Saves today's counts once per visit to the Rollup tab. The record key is the day, so a second save
+// the same day is refused by the platform and nothing is duplicated.
+function SaveTrend({ model }: { model: CooModel }) {
+  const save = useExecuteWorkflowNodeMutation()
+  const sent = useRef(false)
+  useEffect(() => {
+    if (sent.current) return
+    sent.current = true
+    const day = new Date(model.read_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
+    const byRule = (r: string) => model.signals.filter((s) => s.rule === r).length
+    const params = {
+      day,
+      signal_count: String(model.signalCount),
+      ot1: String(byRule('OT-1')),
+      ot3: String(byRule('OT-3')),
+      ot4: String(byRule('OT-4')),
+      ot6: String(byRule('OT-6')),
+      tasks_overdue: String(model.counts.tasksOverdue ?? 0),
+      raid_escalated: String(model.counts.raidEscalated ?? 0),
+      people_overloaded: String((model as unknown as { capacity?: { overloaded: number } }).capacity?.overloaded ?? 0),
+    }
+    save
+      .mutateAsync({
+        data: {
+          context: { appName: 'callables', resourceName: 'callables_call_automation', resourceVersion: TREND_RV },
+          id: TREND_DS,
+          inputs: { automationId: TREND_AUTO, version: '-1', runtimeConnections: {}, parameters: params, synchronous: true },
+          options: {},
+        },
+      } as never)
+      .catch(() => undefined)
+    // A failed save (for example, today is already recorded) is not shown to the COO.
+  }, [model, save])
+  return null
+}
 
 function projectLink(code: string) {
   return DELIVERY_OPS + encodeURIComponent(code)
@@ -274,9 +313,82 @@ function Ask({ model }: { model: CooModel }) {
 function Rollup({ model }: { model: CooModel }) {
   const statusRows = Object.entries(model.byProject.status)
   const milestoneRows = Object.entries(model.enums.milestoneStatus ?? {})
+  const trend = (model.trend ?? []).slice(-30).reverse()
+  const cap = model.capacity
+  const repeat = Object.entries(model.repeatBlockers ?? {})
   return (
     <div style={{ display: 'grid', gap: 16 }}>
-      <Panel title="Project health" note="Counts from the live read. Trends over time need a daily history, which is not stored yet.">
+      <SaveTrend model={model} />
+      <Panel title="Trend, day by day" note="One row per day, from the first day the app recorded counts. Movement shows once there are several days.">
+        {trend.length === 0 ? (
+          <p style={{ margin: 0, color: C.muted }}>No history yet. Today is recorded when this tab is opened.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ textAlign: 'left', color: C.muted }}>
+                  <th style={{ padding: 6 }}>Day</th>
+                  <th style={{ padding: 6 }}>Signals</th>
+                  <th style={{ padding: 6 }}>Missed</th>
+                  <th style={{ padding: 6 }}>Blockers</th>
+                  <th style={{ padding: 6 }}>At risk</th>
+                  <th style={{ padding: 6 }}>Due 7 days</th>
+                  <th style={{ padding: 6 }}>Overdue tasks</th>
+                  <th style={{ padding: 6 }}>Escalated</th>
+                  <th style={{ padding: 6 }}>Over 100%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trend.map((r) => (
+                  <tr key={String(r.day)} style={{ borderTop: "1px solid " + C.line }}>
+                    <td style={{ padding: 6 }}>{String(r.day ?? '')}</td>
+                    <td style={{ padding: 6 }}>{String(r.signal_count ?? '—')}</td>
+                    <td style={{ padding: 6 }}>{String(r.ot1 ?? '—')}</td>
+                    <td style={{ padding: 6 }}>{String(r.ot3 ?? '—')}</td>
+                    <td style={{ padding: 6 }}>{String(r.ot4 ?? '—')}</td>
+                    <td style={{ padding: 6 }}>{String(r.ot6 ?? '—')}</td>
+                    <td style={{ padding: 6 }}>{String(r.tasks_overdue ?? '—')}</td>
+                    <td style={{ padding: 6 }}>{String(r.raid_escalated ?? '—')}</td>
+                    <td style={{ padding: 6 }}>{String(r.people_overloaded ?? '—')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+      <Panel title="Capacity: people over 100% today" note="From the team allocation records, counting only rows whose dates cover today. Totals far above 100% usually mean allocation rows that were never closed. Check their end dates before acting.">
+        {cap ? (
+          <>
+            <p style={{ margin: '0 0 8px' }}>
+              {cap.peopleAllocated} people allocated today · {cap.overloaded} over 100%
+            </p>
+            <ul style={{ paddingLeft: 18, margin: 0 }}>
+              {cap.overloadedList.slice(0, 10).map((p) => (
+                <li key={p.name}>
+                  {p.name}: {p.total}% across {p.projects.length} projects
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p style={{ margin: 0, color: C.muted }}>Not in this read yet.</p>
+        )}
+      </Panel>
+      <Panel title="Repeat blockers" note="Projects with two or more open blockers at once.">
+        {repeat.length === 0 ? (
+          <p style={{ margin: 0 }}>None right now.</p>
+        ) : (
+          <ul style={{ paddingLeft: 18, margin: 0 }}>
+            {repeat.map(([project, n]) => (
+              <li key={project}>
+                <SourceLink code={project} />: {n} open blockers
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+      <Panel title="Project health">
         <ul style={{ paddingLeft: 18, margin: 0 }}>
           {statusRows.map(([k, v]) => (
             <li key={k}>
@@ -293,9 +405,6 @@ function Rollup({ model }: { model: CooModel }) {
             </li>
           ))}
         </ul>
-      </Panel>
-      <Panel title="Weekly rollup, capacity and repeat blockers" note="Needs weekly history and the resource allocation read. Not built yet.">
-        <p style={{ margin: 0, color: C.muted }}>Not built yet.</p>
       </Panel>
     </div>
   )
@@ -350,11 +459,11 @@ const REQUIREMENTS: Array<{ phase: string; item: string; status: 'Built' | 'Part
   { phase: '3 Drill-down', item: 'Saved questions for the weekly review', status: 'Partial', note: "Five fixed questions. Saving the COO's own is not built yet." },
   { phase: '4 Alerts and actions', item: 'Real-time alerts for blockers, slips, frustration, connector issues', status: 'Partial', note: 'Signals are computed on each read. Push alerts need a scheduled run and a channel.' },
   { phase: '4 Alerts and actions', item: 'Claude drafts follow-ups for approval', status: 'Blocked', note: 'Needs a send channel (Slack or email) and an approval step.' },
-  { phase: '4 Alerts and actions', item: 'Weekly rollup: trends, repeat blockers, team capacity', status: 'Not started', note: 'Needs weekly history and the resource allocation read.' },
+  { phase: '4 Alerts and actions', item: 'Weekly rollup: trends, repeat blockers, team capacity', status: 'Partial', note: 'Day-by-day trend, repeat blockers and team capacity are on the Rollup tab. A weekly view needs a few weeks of history first.' },
   { phase: '5 Scale', item: 'All customers and channels', status: 'Partial', note: 'All projects and accounts are in scope. Channels wait for the connections.' },
   { phase: '5 Scale', item: 'Adoption and ROI per use case', status: 'Blocked', note: 'No usage data is connected yet.' },
   { phase: '5 Scale', item: 'Platform health and inference cost', status: 'Blocked', note: 'No source connected yet.' },
-  { phase: '5 Scale', item: 'Capacity planning (overloaded people, next quarter)', status: 'Not started', note: 'Needs the allocation read.' },
+  { phase: '5 Scale', item: 'Capacity planning (overloaded people, next quarter)', status: 'Partial', note: 'Who is over 100% today is on the Rollup tab. Next-quarter planning is not built yet.' },
   { phase: 'Risks', item: 'Privacy: no HR or legal threads', status: 'Built', note: 'HR is limited to interviews and onboarding. Legal threads are not read.' },
   { phase: 'Risks', item: 'Accuracy: sources always shown', status: 'Built', note: 'Every item links to its source.' },
   { phase: 'Risks', item: 'Data hygiene owner', status: 'Not started', note: 'Needs a named owner per customer.' },
