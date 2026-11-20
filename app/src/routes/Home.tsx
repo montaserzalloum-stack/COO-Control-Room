@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { useCooModel, type Signal } from '@/data/coo'
+import { useCooModel, type CooModel, type Signal } from '@/data/coo'
 
 const TILES: Array<{ key: string; label: string }> = [
   { key: 'projects', label: 'Projects' },
@@ -62,6 +62,97 @@ function SignalGroup({ rule, items }: { rule: string; items: Signal[] }) {
   )
 }
 
+function countByProject(items: Signal[]) {
+  const m = new Map<string, number>()
+  for (const s of items) m.set(s.project, (m.get(s.project) ?? 0) + 1)
+  return [...m.entries()].sort((a, b) => b[1] - a[1])
+}
+
+function BriefSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Card className="border-border bg-card shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-base font-semibold text-card-foreground">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="text-sm text-foreground">{children}</CardContent>
+    </Card>
+  )
+}
+
+function Briefing({ model }: { model: CooModel }) {
+  const byRule = (r: string) => model.signals.filter((s) => s.rule === r)
+  const missed = byRule('OT-1')
+  const atRisk = byRule('OT-4')
+  const blockers = byRule('OT-3')
+  const due = byRule('OT-6')
+  const offTrackProjects = countByProject([...missed, ...atRisk])
+
+  return (
+    <section className="space-y-4" data-test-id="briefing">
+      <h2 className="text-lg font-semibold text-foreground">Daily briefing</h2>
+
+      <BriefSection title="1. Decisions needed from you">
+        <ul className="list-disc space-y-1 pl-5">
+          <li>{blockers.length} open issues have had no update for 3 or more days.</li>
+          <li>{model.counts.raidEscalated} RAID items are escalated.</li>
+          <li>{model.counts.tasksOverdue} overdue tasks: check stale due dates first.</li>
+        </ul>
+      </BriefSection>
+
+      <BriefSection title="2. Off track, and why">
+        <p className="mb-2">
+          {missed.length} missed milestones and {atRisk.length} use cases at risk, blocked or on hold.
+        </p>
+        <ul className="space-y-1">
+          {offTrackProjects.slice(0, 8).map(([project, n]) => (
+            <li key={project}>
+              <span className="font-medium">{project}</span>: {n} items
+            </li>
+          ))}
+        </ul>
+      </BriefSection>
+
+      <BriefSection title="3. Blocked people and dependencies">
+        {blockers.length === 0 ? (
+          <p>No open issues older than 3 days.</p>
+        ) : (
+          <ul className="space-y-1">
+            {blockers.slice(0, 8).map((s, i) => (
+              <li key={s.ref + '-' + i}>
+                <span className="font-medium">{s.project} · {s.ref}</span>: {s.detail}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-2 text-xs text-muted-foreground">Owners are not shown yet: the signal does not carry them.</p>
+      </BriefSection>
+
+      <BriefSection title="4. Customer sentiment">
+        <p className="text-muted-foreground">Not connected yet. Slack and email are added after the objects read is verified.</p>
+      </BriefSection>
+
+      <BriefSection title="5. Next 7 days">
+        {due.length === 0 ? (
+          <p>Nothing due in the next 7 days that is not on track.</p>
+        ) : (
+          <ul className="space-y-1">
+            {due.slice(0, 10).map((s, i) => (
+              <li key={s.ref + '-' + i}>
+                <span className="font-medium">{s.project} · {s.ref}</span>: {s.detail}
+              </li>
+            ))}
+          </ul>
+        )}
+      </BriefSection>
+
+      <p className="text-xs text-muted-foreground">
+        Sources: DeliveryOps objects, read live at {fmt(model.read_at)} (Asia/Dubai). Scope: {model.scope}. Signals
+        are rule-based (OT-1, OT-3, OT-4, OT-6); check each one before acting.
+      </p>
+    </section>
+  )
+}
+
 export default function Home() {
   const { model, loading, error, refetch } = useCooModel()
 
@@ -103,6 +194,8 @@ export default function Home() {
                 <Tile key={t.key} label={t.label} value={model.counts[t.key]} />
               ))}
             </section>
+
+            <Briefing model={model} />
 
             <section>
               <h2 className="mb-3 text-lg font-semibold text-foreground">
